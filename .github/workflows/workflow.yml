@@ -49,7 +49,7 @@ jobs:
         env:
           CI: true  
       
-      - name: configure aws credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::441121786326:role/pr3-role
@@ -59,7 +59,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
     
-      - name: Show roles
+      - name: List roles
         run: |
           aws sts get-caller-identity
     

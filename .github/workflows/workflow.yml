@@ -19,70 +19,82 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@v3
-      with:
-          fetch-depth: 0
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.12"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest
-        pip install flask_testing
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Run tests
-      run: |
-        python3 -m unittest pawnshop_test.py
-      env:
-        CI: true 
 
-    - name: Configure AWS Credentials Action for GitHub Actions
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::441121786326:role/pr3-role
-        aws-region: eu-central-1
+      - uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
 
-    - name: List ECR Repositories
-      run: |
-        aws ecr describe-repositories
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Build and push the tagged docker image to Amazon ECR
-      run: |
-        docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
-        docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          
+      - name: Run tests
+        run: |
+          python3 -m unittest test.py
+        env:
+          CI: true  
+      
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::441121786326:role/pr3-role
+          aws-region: eu-central-1
+  
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
     
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-          terraform_version: 1.0.1
-          terraform_wrapper: false
-
-    - name: Terraform Format  
-      run: terraform fmt -check
-      working-directory: terraform
-      continue-on-error: true
-
-    - name: Terraform Init
-      run: terraform init
-      working-directory: terraform
-
-    - name: Terraform Plan
-      run: |
-          terraform plan -no-color -input=false -refresh=true
-      working-directory: terraform
-
-    - name: Terraform Apply
-      run: terraform apply -input=false -auto-approve
-      working-directory: terraform
+      - name: Show roles
+        run: |
+          aws sts get-caller-identity
+    
+      - name: List ECR Repositories
+        run: |
+          aws ecr describe-repositories
+    
+      - name: Build and push the tagged docker image to Amazon ECR
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+            terraform_version: 1.0.1
+            terraform_wrapper: false
+    
+      - name: Terraform Format    
+        id: fmt
+        run: terraform fmt -check
+        working-directory: terraform
+        continue-on-error: true
+    
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: terraform
+    
+      - name: Terraform Plan
+        id: plan
+        run: |
+            #export REPOSITORY_URI=$REPOSITORY_URI
+            terraform plan -no-color -input=false -refresh=true -var="REPOSITORY_URI=${{ secrets.REPOSITORY_URI }}"
+        working-directory: terraform
+    
+      - name: Terraform Apply
+        run: terraform apply -input=false -auto-approve -var="REPOSITORY_URI=${{ secrets.REPOSITORY_URI }}"
+        working-directory: terraform
